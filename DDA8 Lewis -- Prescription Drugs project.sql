@@ -435,9 +435,9 @@ SELECT specialty_description, SUM(total_claim_count) AS total_claims
 --   to achieve the same output.
 
 SELECT specialty_description, SUM(total_claim_count) AS total_claims
-	FROM prescriber INNER JOIN prescription USING (npi)
-	WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
-	GROUP BY GROUPING SETS ((), specialty_description);
+FROM prescriber INNER JOIN prescription USING (npi)
+WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
+GROUP BY GROUPING SETS ((), specialty_description);
 
 
 --4. In addition to comparing the total number of prescriptions by specialty, let's also bring in 
@@ -454,20 +454,20 @@ SELECT specialty_description, SUM(total_claim_count) AS total_claims
 --Interventional Pain Management|                |       57239|
 
 SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_claims
-	FROM prescriber INNER JOIN prescription USING (npi)
-	                INNER JOIN drug USING (drug_name)
-	WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
-	GROUP BY GROUPING SETS ((), opioid_drug_flag, specialty_description);
+FROM prescriber INNER JOIN prescription USING (npi)
+                INNER JOIN drug USING (drug_name)
+WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
+GROUP BY GROUPING SETS ((), opioid_drug_flag, specialty_description);
 	
 
 --5. Modify your query by replacing the GROUPING SETS with ROLLUP(opioid_drug_flag, specialty_description). 
 --How is the result different from the output from the previous query?
 
 SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_claims
-	FROM prescriber INNER JOIN prescription USING (npi)
-	                INNER JOIN drug USING (drug_name)
-	WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
-	GROUP BY ROLLUP (opioid_drug_flag, specialty_description);
+FROM prescriber INNER JOIN prescription USING (npi)
+                INNER JOIN drug USING (drug_name)
+WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
+GROUP BY ROLLUP (opioid_drug_flag, specialty_description);
 --Results no longer include subtotals for each specialty_description across all drugs,
 --but they still include subtotals for each opioid_drug_flag across both specialty_description values.
 --Results also include subtotals for every combination of opioid_drug_flag and specialty_description values.
@@ -479,23 +479,23 @@ SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_
 --How does this change the result?
 
 SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_claims
-	FROM prescriber INNER JOIN prescription USING (npi)
-	                INNER JOIN drug USING (drug_name)
-	WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
-	GROUP BY ROLLUP (specialty_description, opioid_drug_flag);
-
+FROM prescriber INNER JOIN prescription USING (npi)
+                INNER JOIN drug USING (drug_name)
+WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
+GROUP BY ROLLUP (specialty_description, opioid_drug_flag);
 --Results no longer include totals for each opioid_drug_flag across both specialty_description values.
 --Instead, the results now include totals for each specialty_description across both opioid_drug_flag_values. 
 --This implies a grouping hierarchy for subtotals in which opioid_drug_flag is a smaller grouping 
 --within specialty_description.
 	
+	
 --7. Finally, change your query to use the CUBE function instead of ROLLUP. How does this impact the output?
 
 SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_claims
-	FROM prescriber INNER JOIN prescription USING (npi)
-	                INNER JOIN drug USING (drug_name)
-	WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
-	GROUP BY CUBE (specialty_description, opioid_drug_flag);
+FROM prescriber INNER JOIN prescription USING (npi)
+                INNER JOIN drug USING (drug_name)
+WHERE specialty_description IN ('Interventional Pain Management', 'Pain Management')
+GROUP BY CUBE (specialty_description, opioid_drug_flag);
 --Results now include subtotals for every possible grouping:
 --  subtotals for all 4 combinations of specialty_description and opioid_drug_flag values, 
 --  subtotals by opioid_drug_flag,
@@ -503,9 +503,6 @@ SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_
 --  and totals for the entire result set.
 
 
------------------------------
---QUESTION 8 IS NOT YET DONE.
------------------------------	
 --8. In this question, your goal is to create a pivot table showing for each of the 4 largest cities 
 --   in Tennessee (Nashville, Memphis, Knoxville, and Chattanooga), the total claim count for each of six 
 --   common types of opioids: Hydrocodone, Oxycodone, Oxymorphone, Morphine, Codeine, and Fentanyl. 
@@ -528,5 +525,62 @@ SELECT specialty_description, opioid_drug_flag, SUM(total_claim_count) AS total_
 --	 CREATE EXTENSION tablefunc;
 
 --Hint #1: First write a query which will label each drug in the drug table using the six categories listed above.
---Hint #2: In order to use the crosstab function, you need to first write a query which will produce a table with one row_name column, one category column, and one value column. So in this case, you need to have a city column, a drug label column, and a total claim count column.
---Hint #3: The sql statement that goes inside of crosstab must be surrounded by single quotes. If the query that you are using also uses single quotes, you'll need to escape them by turning them into double-single quotes.
+--Hint #2: In order to use the crosstab function, you need to first write a query which will produce a table with 
+--         one row_name column, one category column, and one value column. So in this case, you need to have a city 
+--         column, a drug label column, and a total claim count column.
+--Hint #3: The sql statement that goes inside of crosstab must be surrounded by single quotes. If the query that 
+--         you are using also uses single quotes, you'll need to escape them by turning them into double-single quotes.
+
+
+--QUERY WITHOUT CROSSTAB--
+WITH drug_with_opioid_type AS (SELECT drug_name,
+					 		  	      generic_name,
+									  CASE WHEN generic_name LIKE '%HYDROCODONE%' THEN 'hydrocodone'
+	 									   WHEN generic_name LIKE '%OXYCODONE%' THEN 'oxycodone'
+	 									   WHEN generic_name LIKE '%OXYMORPHONE%' THEN 'oxymorphone'
+										   WHEN generic_name LIKE '%MORPHINE%' THEN 'morphine'
+	 									   WHEN generic_name LIKE '%CODEINE%' THEN 'codeine'
+	 									   WHEN generic_name LIKE '%FENTANYL%' THEN 'fentanyl'
+	 									   ELSE NULL END AS opioid_type
+							   FROM drug)
+SELECT nppes_provider_city AS city, 
+	   opioid_type,
+	   SUM(total_claim_count) AS total_claims
+FROM prescriber INNER JOIN prescription USING (npi)
+                INNER JOIN drug_with_opioid_type USING (drug_name)
+WHERE nppes_provider_city IN ('CHATTANOOGA','KNOXVILLE','MEMPHIS','NASHVILLE')
+      AND opioid_type IS NOT NULL
+GROUP BY nppes_provider_city, opioid_type
+ORDER BY city, opioid_type;
+
+--QUERY WITH CROSSTAB--
+SELECT * 
+FROM CROSSTAB(
+	'WITH drug_with_opioid_type AS (SELECT drug_name,
+						 		  	      generic_name,
+										  CASE WHEN generic_name LIKE ''%HYDROCODONE%'' THEN ''hydrocodone''
+		 									   WHEN generic_name LIKE ''%OXYCODONE%'' THEN ''oxycodone''
+		 									   WHEN generic_name LIKE ''%OXYMORPHONE%'' THEN ''oxymorphone''
+											   WHEN generic_name LIKE ''%MORPHINE%'' THEN ''morphine''
+		 									   WHEN generic_name LIKE ''%CODEINE%'' THEN ''codeine''
+		 									   WHEN generic_name LIKE ''%FENTANYL%'' THEN ''fentanyl''
+		 									   ELSE NULL END AS opioid_type
+								   FROM drug)
+	SELECT nppes_provider_city AS city, 
+		   opioid_type,
+		   SUM(total_claim_count) AS total_claims
+	FROM prescriber INNER JOIN prescription USING (npi)
+	                INNER JOIN drug_with_opioid_type USING (drug_name)
+	WHERE nppes_provider_city IN (''CHATTANOOGA'',''KNOXVILLE'',''MEMPHIS'',''NASHVILLE'')
+	      AND opioid_type IS NOT NULL
+	GROUP BY nppes_provider_city, opioid_type
+	ORDER BY city, opioid_type;' 
+	) AS ct(city TEXT,
+	    	codeine NUMERIC,
+			fentanyl NUMERIC,
+			hydrocodone NUMERIC,
+			morphine NUMERIC,
+			oxycodone NUMERIC,
+			oxymorphone NUMERIC);
+
+--------------------
